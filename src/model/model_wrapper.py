@@ -41,6 +41,7 @@ from .decoder.decoder import Decoder, DepthRenderingMode
 from .encoder import Encoder
 from .encoder.visualization.encoder_visualizer import EncoderVisualizer
 
+import matplotlib.pyplot as plt
 
 @dataclass
 class OptimizerCfg:
@@ -300,8 +301,9 @@ class ModelWrapper(LightningModule):
             batch[type]["intrinsics"] = torch.stack(batch[type]["intrinsics"], dim=1)
             batch[type]["image"] = torch.stack(batch[type]["image"], dim=1)
             device = batch[type]["image"].device
-            batch[type]["near"] = torch.tensor([0.01] * batch[type]["image"].shape[1]).to(device)
-            batch[type]["far"] = torch.tensor([100.] * batch[type]["image"].shape[1]).to(device)
+            b, v = batch[type]["image"].shape[:2]
+            batch[type]["near"] = torch.tensor([[0.01] * v] * b).to(device)
+            batch[type]["far"] = torch.tensor([[100.] * v] * b).to(device)
 
         if self.global_rank == 0:
             print(
@@ -351,7 +353,8 @@ class ModelWrapper(LightningModule):
             "comparison",
             [prep_image(add_border(comparison))],
             step=self.global_step,
-            caption=batch["scene"],
+            # caption=batch["scene"],
+            caption="context/target/rendered"
         )
 
         # Render projections and construct projection image.
