@@ -160,8 +160,8 @@ class ModelWrapper(LightningModule):
         ):
             print(
                 f"train step {self.global_step}; "
-                f"scene = {[x[:20] for x in batch['scene']]}; "
-                f"context = {batch['context']['index'].tolist()}; "
+                # f"scene = {[x[:20] for x in batch['scene']]}; "
+                # f"context = {batch['context']['index'].tolist()}; "
                 f"bound = [{batch['context']['near'].detach().cpu().numpy().mean()} "
                 f"{batch['context']['far'].detach().cpu().numpy().mean()}]; "
                 f"loss = {total_loss:.6f}"
@@ -277,14 +277,38 @@ class ModelWrapper(LightningModule):
             self.benchmarker.summarize()
 
     @rank_zero_only
-    def validation_step(self, batch, batch_idx):
-        batch: BatchedExample = self.data_shim(batch)
+    def validation_step(self, batch_in, batch_idx):
+        # batch: BatchedExample = self.data_shim(batch)
+
+        # "extrinsics": context["extrinsics"],
+        # "intrinsics": context["intrinsics"],
+        # "near": context["near"],
+        # "far": context["far"],
+        view_in_list = ["middle", "right", "up", "left"]
+        view_gt_list = ["gt_left", "gt_right"]
+        batch = {'context': {}, 'target': {}}
+
+        for type in ['context', 'target']:
+            batch[type]["image"] = []
+            batch[type]["extrinsics"] = []
+            batch[type]["intrinsics"] = []
+            for view in view_in_list if type=='context' else view_gt_list:
+                batch[type]["image"].append(batch_in[view]['img'])
+                batch[type]["extrinsics"].append(batch_in[view]['extr'])
+                batch[type]["intrinsics"].append(batch_in[view]['intr'])
+            batch[type]["extrinsics"] = torch.stack(batch[type]["extrinsics"], dim=1)
+            batch[type]["intrinsics"] = torch.stack(batch[type]["intrinsics"], dim=1)
+            batch[type]["image"] = torch.stack(batch[type]["image"], dim=1)
+            device = batch[type]["image"].device
+            batch[type]["near"] = torch.tensor([0.01] * batch[type]["image"].shape[1]).to(device)
+            batch[type]["far"] = torch.tensor([100.] * batch[type]["image"].shape[1]).to(device)
 
         if self.global_rank == 0:
             print(
                 f"validation step {self.global_step}; "
-                f"scene = {[a[:20] for a in batch['scene']]}; "
-                f"context = {batch['context']['index'].tolist()}"
+                # f"scene = {[a[:20] for a in batch['scene']]}; "
+                # f"scene = {[a[:20] for a in batch['scene']]}; "
+                # f"context = {batch['context']['index'].tolist()}"
             )
 
         # Render Gaussians.

@@ -1,8 +1,9 @@
 import os
 from pathlib import Path
 import warnings
-
+from rttp_config.new_data_module import RgbdDataModule
 import hydra
+from rttp_config.rttp_config import ConfigRttp as config
 import torch
 import wandb
 from colorama import Fore
@@ -21,7 +22,6 @@ with install_import_hook(
     ("beartype", "beartype"),
 ):
     from src.config import load_typed_root_config
-    from src.dataset.data_module import DataModule
     from src.global_cfg import set_cfg
     from src.loss import get_losses
     from src.misc.LocalLogger import LocalLogger
@@ -130,21 +130,27 @@ def train(cfg_dict: DictConfig):
         get_losses(cfg.loss),
         step_tracker
     )
-    data_module = DataModule(
-        cfg.dataset,
-        cfg.data_loader,
-        step_tracker,
-        global_rank=trainer.global_rank,
+    # data_module = DataModule(
+    #     cfg.dataset,
+    #     cfg.data_loader,
+    #     step_tracker,
+    #     global_rank=trainer.global_rank,
+    # )
+    cfg = config()
+    cfg.load("/playpen-ssd/yumo/mvsplat/rttp_config/rttp_config.yaml")
+    cfg = cfg.get_cfg()
+    data_module=RgbdDataModule(
+        cfg
     )
 
-    if cfg.mode == "train":
-        trainer.fit(model_wrapper, datamodule=data_module, ckpt_path=checkpoint_path)
-    else:
-        trainer.test(
-            model_wrapper,
-            datamodule=data_module,
-            ckpt_path=checkpoint_path,
-        )
+    # if cfg.mode == "train":
+    trainer.fit(model_wrapper, datamodule=data_module, ckpt_path=checkpoint_path)
+    # else:
+    #     trainer.test(
+    #         model_wrapper,
+    #         datamodule=data_module,
+    #         ckpt_path=checkpoint_path,
+    #     )
 
 
 if __name__ == "__main__":
