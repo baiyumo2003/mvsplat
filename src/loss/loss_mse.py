@@ -7,7 +7,7 @@ from ..dataset.types import BatchedExample
 from ..model.decoder.decoder import DecoderOutput
 from ..model.types import Gaussians
 from .loss import Loss
-
+import matplotlib.pyplot as plt
 
 @dataclass
 class LossMseCfg:

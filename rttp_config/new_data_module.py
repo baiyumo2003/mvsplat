@@ -21,7 +21,7 @@ class RgbdDataModule(LightningDataModule):
     def train_dataloader(self):
         train_set = RttpDataset(self.cfg.dataset, phase='train')
         train_loader = DataLoader(train_set, batch_size=self.cfg.batch_size, shuffle=True,
-                                       num_workers=self.cfg.batch_size * 2, pin_memory=True)
+                                       num_workers=self.cfg.batch_size , pin_memory=True)
         return train_loader
 
     def val_dataloader(self):

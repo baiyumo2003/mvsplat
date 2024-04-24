@@ -121,13 +121,32 @@ class ModelWrapper(LightningModule):
             self.test_step_outputs = {}
             self.time_skip_steps_dict = {"encoder": 0, "decoder": 0}
 
-    def training_step(self, batch, batch_idx):
-        batch: BatchedExample = self.data_shim(batch)
+    def training_step(self, batch_in, batch_idx):
+        # batch: BatchedExample = self.data_shim(batch)
+        view_gt_list = ["gt_left", "gt_right"]
+        view_in_list = ["middle", "right", "up", "left"]
+        batch = {'context': {}, 'target': {}}
+        for type in ['context', 'target']:
+            batch[type]["image"] = []
+            batch[type]["extrinsics"] = []
+            batch[type]["intrinsics"] = []
+            for view in view_in_list if type == 'context' else view_gt_list:
+                batch[type]["image"].append(batch_in[view]['img'])
+                batch[type]["extrinsics"].append(batch_in[view]['extr']*100)
+                batch[type]["intrinsics"].append(batch_in[view]['intr'])
+            batch[type]["extrinsics"] = torch.stack(batch[type]["extrinsics"], dim=1)
+            batch[type]["intrinsics"] = torch.stack(batch[type]["intrinsics"], dim=1)
+            batch[type]["image"] = torch.stack(batch[type]["image"], dim=1)
+            device = batch[type]["image"].device
+            b, v = batch[type]["image"].shape[:2]
+            batch[type]["near"] = torch.tensor([[0.1] * v] * b).to(device)
+            batch[type]["far"] = torch.tensor([[1.] * v] * b).to(device)
+
         _, _, _, h, w = batch["target"]["image"].shape
 
         # Run the model.
         gaussians = self.encoder(
-            batch["context"], self.global_step, False, scene_names=batch["scene"]
+            batch["context"], self.global_step, False, scene_names="context/target/rendered"
         )
         output = self.decoder.forward(
             gaussians,
@@ -167,6 +186,11 @@ class ModelWrapper(LightningModule):
                 f"{batch['context']['far'].detach().cpu().numpy().mean()}]; "
                 f"loss = {total_loss:.6f}"
             )
+            # self.logger.log_image(
+            #     "projection",
+            #     [prep_image(add_border(projections))],
+            #     step=self.global_step,
+            # )
         self.log("info/near", batch["context"]["near"].detach().cpu().numpy().mean())
         self.log("info/far", batch["context"]["far"].detach().cpu().numpy().mean())
         self.log("info/global_step", self.global_step)  # hack for ckpt monitor
@@ -354,7 +378,7 @@ class ModelWrapper(LightningModule):
             [prep_image(add_border(comparison))],
             step=self.global_step,
             # caption=batch["scene"],
-            caption="context/target/rendered"
+            # caption="context/target/rendered"
         )
 
         # Render projections and construct projection image.
